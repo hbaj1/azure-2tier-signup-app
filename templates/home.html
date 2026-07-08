@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+  <h1>2-Tier Azure Demo</h1>
+  <p>
+    Database status:
+    {% if db_configured %}
+      <strong style="color: green;">Configured</strong>
+    {% else %}
+      <strong style="color: orange;">Not connected yet (UI-only mode)</strong>
+    {% endif %}
+  </p>
+  <p><a href="{{ url_for('signup') }}">Create an account</a> or <a href="{{ url_for('login') }}">log in</a>.</p>
+{% endblock %}
