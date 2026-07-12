@@ -104,3 +104,30 @@
 
 \- (DB\_PASSWORD stored only on the VM's systemd service file, not committed here)
 
+## NAT Gateway (added Step 9)
+- Name: natgw-2tier-prod
+- Public IP: natgw-2tier-prod-ip
+- Attached to: subnet-private-app, subnet-private-data
+- Note: NAT Gateways cannot be stopped/deallocated - incurs small fixed hourly cost as long as it exists
+
+## Jump Server (added Step 9)
+### jump-linux
+- Purpose: Bastion host for accessing private subnet resources
+- Subnet: subnet-public (10.0.1.0/24)
+- Auth: SSH public key (vm-2tier-test_key, reused)
+- Access pattern: connect with `ssh -A` (agent forwarding) from laptop, then
+  `ssh azureuser@10.0.0.5` from inside jump-linux to reach vm-2tier-db privately
+- Windows jump server was considered but skipped for now (kept VM count minimal)
+
+## Storage Account (Step 10, Part A)
+- Name: storage2tier
+- Purpose: Boot diagnostics for VMs/VMSS
+- Type: StorageV2, Standard, LRS
+- Region: East US
+
+## Open decision (Step 10, Part B - not yet resolved)
+- VMSS instances in subnet-private-app will need DB access
+- Choice pending: NSG rule allowing subnet-private-app range (10.0.2.0/24) 
+  vs. Application Security Groups (ASG) for more precise access control
+- Current DB NSG rule only allows 10.0.0.4/32 (the now-deleted original test VM)
+
