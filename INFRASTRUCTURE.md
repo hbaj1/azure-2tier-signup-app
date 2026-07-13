@@ -131,3 +131,18 @@
   vs. Application Security Groups (ASG) for more precise access control
 - Current DB NSG rule only allows 10.0.0.4/32 (the now-deleted original test VM)
 
+## VM Scale Set (Step 10, Part B)
+- Name: vmss2tierapp
+- Orchestration mode: Uniform
+- Image: img-2tier-signup-app-v1 (golden image)
+- Size: Standard B1s
+- Scaling: Autoscale, min 2 / max 5 / default 2, CPU-based (default 80%/20% thresholds)
+- Subnet: subnet-private-app (10.0.2.0/24) - no public IPs
+- Load balancing: None at creation - Application Gateway to be attached separately (Step 11)
+- Boot diagnostics: custom storage account -> storage2tier
+- Auth: SSH public key (vm-2tier-test_key, reused)
+- Upgrade mode: Manual
+
+## Open decision resolved
+- DB access approach for VMSS instances: [pending - decide subnet-range vs ASG before testing connectivity]
+
