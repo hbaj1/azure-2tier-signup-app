@@ -53,10 +53,10 @@
 - Type: StorageV2, Standard, LRS
 - Region: East US
 
-## VM Scale Set (Step 10, Part B)
+## VM Scale Set
 - Name: vmss2tierapp
 - Orchestration mode: Uniform
-- Image: img-2tier-signup-app-v1 (golden image)
+- Image: img-2tier-signup-app-v2 (golden image, current)
 - Size: Standard B1s
 - Scaling: Autoscale, min 2 / max 5 / default 2, CPU-based (default 80%/20% thresholds)
 - Subnet: subnet-private-app (10.0.2.0/24) - no public IPs
@@ -66,20 +66,32 @@
 - Upgrade mode: Manual
 
 ## Golden Image
-- Name: img-2tier-signup-app-v1
-- Built from: vm-2tier-test (Ubuntu 24.04, nginx + gunicorn + Flask app, systemd service "signup-app")
-- vm-2tier-test was deleted after capture (Step 8)
+- Name: img-2tier-signup-app-v2 (current)
+- Built from: vm-2tier-test-v1 (Ubuntu 24.04, nginx + gunicorn + Flask app 
+  installed in /opt/azure-2tier-signup-app, systemd service "signup-app" 
+  with DB env vars baked in directly)
+- vm-2tier-test-v1 was deleted after capture
+
+### Bug found and fixed
+- v1 image (built from original vm-2tier-test) was broken: app files lived 
+  in /home/azureuser/, which gets wiped by `waagent -deprovision+user -force` 
+  during generalization. Result: VMSS instances booted with nginx running 
+  but no app/venv/gunicorn, causing 502 Bad Gateway (systemd status 203/EXEC).
+- Fix: rebuilt the VM (vm-2tier-test-v1) with app in /opt/azure-2tier-signup-app 
+  instead - this path survives deprovisioning since it's not tied to a user account.
+- v1 image, its source VM, and the original VMSS built on it were all deleted 
+  after v2 was confirmed working end-to-end (signup -> DB write verified).
 
 ## SSH Key
 - Name: vm-2tier-test_key
 - Stored locally at: ~/.ssh/vm-2tier-test_key.pem
-- Reused across vm-2tier-test, vm-2tier-db, jump-linux, vmss2tierapp
+- Reused across vm-2tier-db, jump-linux, vmss2tierapp
 
-## App Database Connection (systemd env vars on web VM - now VMSS instances)
+## App Database Connection (baked into systemd service on golden image)
 - DB_HOST=10.0.0.5
 - DB_USER=appuser
 - DB_NAME=appdb
-- (DB_PASSWORD stored only on the VM's systemd service file, not committed here)
+- (DB_PASSWORD stored only on the image's systemd service file, not committed here)
 
 ## Decisions Log
 - DB access for VMSS: chose subnet-range NSG rule (10.0.2.0/24) over 
