@@ -16,6 +16,7 @@
 | subnet-public | 10.0.1.0/24 | Jump servers | No (has public IPs directly) |
 | subnet-private-app | 10.0.2.0/24 | VMSS/app tier | Yes |
 | subnet-private-data | 10.0.3.0/24 | Reserved for future DB migration | Yes |
+| subnet-appgw | 10.0.4.0/24 | Application Gateway (dedicated, required by Azure) | No |
 
 ## NAT Gateway
 - Name: natgw-2tier-prod
@@ -60,7 +61,7 @@
 - Size: Standard B1s
 - Scaling: Autoscale, min 2 / max 5 / default 2, CPU-based (default 80%/20% thresholds)
 - Subnet: subnet-private-app (10.0.2.0/24) - no public IPs
-- Load balancing: None at creation - Application Gateway to be attached separately (Step 11)
+- Load balancing: Application Gateway attached (Step 11) - see below
 - Boot diagnostics: custom storage account -> storage2tier
 - Auth: SSH public key (vm-2tier-test_key, reused)
 - Upgrade mode: Manual
@@ -81,6 +82,51 @@
   instead - this path survives deprovisioning since it's not tied to a user account.
 - v1 image, its source VM, and the original VMSS built on it were all deleted 
   after v2 was confirmed working end-to-end (signup -> DB write verified).
+
+## Application Gateway (Step 11-12)
+- Name: appgw-2tier-prod
+- Tier: Standard V2, autoscaling disabled, fixed instance count 2
+- Subnet: subnet-appgw (10.0.4.0/24) - dedicated subnet, required by Azure
+  (App Gateway cannot share a subnet with any other resource)
+- Frontend: Public IP appgw-2tier-ip (20.232.236.118)
+- Backend pool: backend-pool-vmss -> target type VMSS -> vmss2tierapp
+- Backend settings: backend-settings-http, HTTP, port 80
+- Health probe: probe-healthz, path /healthz, host set manually to one 
+  instance's IP due to a Portal UI quirk (see note below) - in a correct 
+  setup, "pick host name from backend settings: Yes" makes App Gateway 
+  probe every backend pool member automatically on their own IPs; the 
+  Host field only sets the HTTP Host header, not the probe destination.
+- Listener: listener-http, HTTP, port 80
+- Routing rule: rule-http, ties listener to backend pool
+
+### NSG Rules (appgw-2tier-nsg, attached to subnet-appgw)
+- Allow-HTTP-From-Internet: port 80, TCP, source Any, priority 110 
+  (lets internet clients reach the gateway's listener)
+- Allow-GatewayManager: ports 65200-65535, TCP, source Internet, priority 100
+  - Note: source should ideally be the GatewayManager service tag per 
+    Microsoft docs, but the Portal repeatedly failed to validate/save 
+    that tag for this rule - confirmed as a known Portal issue via 
+    Microsoft Q&A (others hit the same error). Internet is the documented 
+    community workaround. Functionally still secure since these ports 
+    are certificate-protected by Azure internally regardless of NSG source.
+
+### NSG Rule added (basicNsgvm-2tier-test-vnet-nic01, attached to VMSS NICs)
+- Allow-HTTP-From-AppGW: port 80, TCP, source 10.0.4.0/24 (subnet-appgw), 
+  priority 220 - lets the gateway reach the VMSS instances
+
+### Bug found and fixed: empty backend pool
+- After creating the Application Gateway and pointing its backend pool at 
+  vmss2tierapp, the pool showed 0 targets and testing returned 502 Bad Gateway.
+- Cause: the VMSS was in Manual upgrade mode; its 2 existing instances 
+  (created before the App Gateway existed) never picked up the new backend 
+  pool association automatically.
+- Fix: selected both instances in vmss2tierapp -> Instances -> Upgrade. 
+  This reimaged them against the current model, which included the backend 
+  pool link. Backend pool then showed 2/2 healthy targets.
+
+## Verified working end-to-end (Steps 11-12)
+- http://20.232.236.118 (Application Gateway public IP) serves the app
+- Signup/login/dashboard flow confirmed working through the gateway
 
 ## SSH Key
 - Name: vm-2tier-test_key
