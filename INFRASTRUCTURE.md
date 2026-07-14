@@ -144,3 +144,11 @@
   Application Security Groups, due to time constraints while awaiting 
   trainer's input. ASGs remain a good future hardening step (more precise, 
   scoped to just VMSS instances rather than the whole subnet).
+
+## Domain & DNS (Step 13-14, IN PROGRESS)
+- Domain purchased: absariq.com (registrar: Namecheap)
+- Azure DNS zone created: absariq.com (in ram-demo-rg-dont-delete, East US)
+- NEXT STEP: copy the 4 Azure nameserver (NS) values from the DNS zone 
+  resource, then update Namecheap's nameserver settings to point to them
+- After that: create an A record in the Azure DNS zone pointing 
+  absariq.com -> 20.232.236.118 (Application Gateway public IP)
